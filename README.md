@@ -23,6 +23,9 @@ Run the dataset generation script:
 python generate_dataset.py path/to/config.yaml
 ```
 
+The script shows progress for each book and the pages processed using `tqdm` and
+leverages all available CPU cores to convert multiple books in parallel.
+
 Each entry in the output `.jsonl` will contain a `prompt` instructing the model
 to write in the style of the given author and a `completion` holding the text
 extracted from the book pages.
