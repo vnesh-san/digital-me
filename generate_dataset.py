@@ -88,6 +88,7 @@ def main(config_path):
                 char_count += add_len
                 chunk_words.append(word)
                 j += 1
+
             if not chunk_words:
                 chunk_words.append(words[i])
                 j = i + 1
@@ -96,6 +97,9 @@ def main(config_path):
             records.append(record)
             splits.append({"chunk_index": chunk_index, "start_word": i + 1, "end_word": j})
             chunk_index += 1
+
+            if j >= len(words):
+                break
 
             overlap_words = int(len(chunk_words) * overlap)
             if overlap_words >= len(chunk_words):
