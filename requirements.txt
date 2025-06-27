@@ -1,0 +1,5 @@
+PyPDF2
+ebooklib
+PyYAML
+tqdm
+langchain
