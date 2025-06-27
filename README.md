@@ -13,9 +13,12 @@ pip install -r requirements.txt
 
 ## Usage
 
-Create a YAML configuration file specifying the author, output dataset file, and
+Create a YAML configuration file specifying the author, output dataset file and
 books with page ranges to include. You can also control how the text is split
-into chunks using the optional `chunk_size` and `overlap` settings. A report of
+into chunks using the optional `chunk_size` and `overlap` settings. `chunk_size`
+is measured in characters (default `1024`) and words are never split across
+chunks. The `overlap` value is a ratio of how many words are reused from the end
+of the previous chunk when starting the next one (default `0.25`). A report of
 the planned splits is written before the dataset is generated. An example
 configuration is provided in `example_config.yaml`.
 
