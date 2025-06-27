@@ -1,0 +1,4 @@
+PyPDF2
+ebooklib
+beautifulsoup4
+PyYAML

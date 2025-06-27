@@ -1,0 +1,9 @@
+author: "Author Name"
+output_file: "dataset.jsonl"
+books:
+  - path: "path/to/book1.pdf"
+    start_page: 1
+    end_page: 100
+  - path: "path/to/book2.epub"
+    start_page: 5
+    end_page: 50
