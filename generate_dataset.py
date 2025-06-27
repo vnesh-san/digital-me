@@ -3,42 +3,48 @@ import json
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import yaml
-from PyPDF2 import PdfReader
-from ebooklib import epub
-from bs4 import BeautifulSoup
 from tqdm import tqdm
+from langchain.document_loaders import (
+    PyPDFLoader,
+    UnstructuredEPubLoader,
+    DirectoryLoader,
+)
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 
 def extract_pdf_text(path, start, end, position=0):
-    reader = PdfReader(path)
-    num_pages = len(reader.pages)
-    extracted = []
+    loader = PyPDFLoader(path)
+    pages = loader.load()
     start = max(start, 1)
-    end = min(end, num_pages)
-    page_range = range(start - 1, end)
-    for i in tqdm(page_range, desc=os.path.basename(path), position=position, leave=False):
-        page = reader.pages[i]
-        text = page.extract_text() or ""
-        extracted.append(text)
+    end = min(end, len(pages))
+    extracted = []
+    for doc in tqdm(pages[start - 1:end], desc=os.path.basename(path), position=position, leave=False):
+        extracted.append(doc.page_content)
     return extracted
 
 
 def extract_epub_text(path, start, end, position=0, words_per_page=700):
-    book = epub.read_epub(path)
-    texts = []
-    for item in book.get_items():
-        if item.get_type() == epub.EpubHtml:
-            soup = BeautifulSoup(item.get_content(), "html.parser")
-            texts.append(soup.get_text())
-    words = " ".join(texts).split()
+    loader = UnstructuredEPubLoader(path)
+    docs = loader.load()
+    text = " ".join(doc.page_content for doc in docs)
+    words = text.split()
     pages = [" ".join(words[i:i + words_per_page]) for i in range(0, len(words), words_per_page)]
     start = max(start, 1)
     end = min(end, len(pages))
     extracted = []
-    page_range = range(start - 1, end)
-    for i in tqdm(page_range, desc=os.path.basename(path), position=position, leave=False):
+    for i in tqdm(range(start - 1, end), desc=os.path.basename(path), position=position, leave=False):
         extracted.append(pages[i])
     return extracted
+
+
+def extract_directory_text(path, position=0):
+    pdf_loader = DirectoryLoader(path, glob="**/*.pdf", loader_cls=PyPDFLoader)
+    epub_loader = DirectoryLoader(path, glob="**/*.epub", loader_cls=UnstructuredEPubLoader)
+    docs = []
+    for loader in [pdf_loader, epub_loader]:
+        for doc in tqdm(loader.load(), desc=os.path.basename(path), position=position, leave=False):
+            docs.append(doc.page_content)
+    return "\n".join(docs)
 
 
 def main(config_path):
@@ -61,50 +67,37 @@ def main(config_path):
         if not os.path.exists(path):
             raise FileNotFoundError(f"Book not found: {path}")
 
-        ext = os.path.splitext(path)[1].lower()
-        if ext == ".pdf":
-            pages = extract_pdf_text(path, start, end, position=position)
-        elif ext == ".epub":
-            pages = extract_epub_text(path, start, end, position=position)
+        if os.path.isdir(path):
+            text = extract_directory_text(path, position=position)
+            pages = [text]
+            start = end = 1
         else:
-            raise ValueError(f"Unsupported file type: {path}")
+            ext = os.path.splitext(path)[1].lower()
+            if ext == ".pdf":
+                pages = extract_pdf_text(path, start, end, position=position)
+            elif ext == ".epub":
+                pages = extract_epub_text(path, start, end, position=position)
+            else:
+                raise ValueError(f"Unsupported file type: {path}")
 
         text = "\n".join(pages)
         words = text.split()
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=chunk_size,
+            chunk_overlap=int(chunk_size * overlap),
+            separators=["\n\n", "\n", " ", ""],
+        )
+        chunks = splitter.split_text(text)
 
         records = []
         splits = []
-        i = 0
-        chunk_index = 1
-        while i < len(words):
-            char_count = 0
-            j = i
-            chunk_words = []
-            while j < len(words):
-                word = words[j]
-                add_len = len(word) if char_count == 0 else len(word) + 1
-                if char_count + add_len > chunk_size:
-                    break
-                char_count += add_len
-                chunk_words.append(word)
-                j += 1
-
-            if not chunk_words:
-                chunk_words.append(words[i])
-                j = i + 1
-
-            record = {"prompt": prompt, "completion": " ".join(chunk_words).strip()}
-            records.append(record)
-            splits.append({"chunk_index": chunk_index, "start_word": i + 1, "end_word": j})
-            chunk_index += 1
-
-            if j >= len(words):
-                break
-
-            overlap_words = int(len(chunk_words) * overlap)
-            if overlap_words >= len(chunk_words):
-                overlap_words = len(chunk_words) - 1
-            i = j - overlap_words
+        start_char = 0
+        overlap_chars = int(chunk_size * overlap)
+        for idx, chunk in enumerate(chunks, start=1):
+            end_char = start_char + len(chunk)
+            records.append({"prompt": prompt, "completion": chunk.strip()})
+            splits.append({"chunk_index": idx, "start_char": start_char, "end_char": end_char})
+            start_char = end_char - overlap_chars
 
         report_entry = {
             "book": path,

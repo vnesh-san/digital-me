@@ -10,3 +10,6 @@ books:
   - path: "path/to/book2.epub"
     start_page: 5
     end_page: 50
+  # Directory containing additional books
+  - path: "path/to/book_directory"  # loads all PDFs and EPUBs inside
+
