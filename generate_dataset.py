@@ -72,18 +72,35 @@ def main(config_path):
         text = "\n".join(pages)
         words = text.split()
 
-        overlap_words = max(0, min(int(chunk_size * overlap), chunk_size - 1))
-        step = max(1, chunk_size - overlap_words)
-
         records = []
         splits = []
-        for idx in range(0, len(words), step):
-            chunk_words = words[idx:idx + chunk_size]
+        i = 0
+        chunk_index = 1
+        while i < len(words):
+            char_count = 0
+            j = i
+            chunk_words = []
+            while j < len(words):
+                word = words[j]
+                add_len = len(word) if char_count == 0 else len(word) + 1
+                if char_count + add_len > chunk_size:
+                    break
+                char_count += add_len
+                chunk_words.append(word)
+                j += 1
             if not chunk_words:
-                break
+                chunk_words.append(words[i])
+                j = i + 1
+
             record = {"prompt": prompt, "completion": " ".join(chunk_words).strip()}
             records.append(record)
-            splits.append({"chunk_index": len(splits) + 1, "start_word": idx + 1, "end_word": idx + len(chunk_words)})
+            splits.append({"chunk_index": chunk_index, "start_word": i + 1, "end_word": j})
+            chunk_index += 1
+
+            overlap_words = int(len(chunk_words) * overlap)
+            if overlap_words >= len(chunk_words):
+                overlap_words = len(chunk_words) - 1
+            i = j - overlap_words
 
         report_entry = {
             "book": path,
