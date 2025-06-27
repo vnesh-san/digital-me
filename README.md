@@ -19,6 +19,7 @@ into chunks using the optional `chunk_size` and `overlap` settings. A report of
 the planned splits is written before the dataset is generated. An example
 configuration is provided in `example_config.yaml`.
 
+
 Run the dataset generation script:
 
 ```bash
@@ -29,6 +30,7 @@ The script shows progress for each book and the pages processed using `tqdm` and
 leverages all available CPU cores to convert multiple books in parallel. Each
 book is split into overlapping chunks, and a report describing the split is
 saved alongside the dataset.
+
 
 Each entry in the output `.jsonl` will contain a `prompt` instructing the model
 to write in the style of the given author and a `completion` holding the text
