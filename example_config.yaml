@@ -1,5 +1,8 @@
 author: "Author Name"
 output_file: "dataset.jsonl"
+chunk_size: 1024
+overlap: 0.25
+report_file: "split_report.json"
 books:
   - path: "path/to/book1.pdf"
     start_page: 1

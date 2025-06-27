@@ -48,6 +48,9 @@ def main(config_path):
     author = config.get("author", "")
     output = config.get("output_file", "dataset.jsonl")
     books = config.get("books", [])
+    chunk_size = int(config.get("chunk_size", 1024))
+    overlap = float(config.get("overlap", 0.25))
+    report_file = config.get("report_file", os.path.splitext(output)[0] + "_report.json")
 
     prompt = f"Write a passage in the style of {author}."
 
@@ -66,17 +69,46 @@ def main(config_path):
         else:
             raise ValueError(f"Unsupported file type: {path}")
 
+        text = "\n".join(pages)
+        words = text.split()
+
+        overlap_words = max(0, min(int(chunk_size * overlap), chunk_size - 1))
+        step = max(1, chunk_size - overlap_words)
+
         records = []
-        for text in pages:
-            record = {"prompt": prompt, "completion": text.strip()}
+        splits = []
+        for idx in range(0, len(words), step):
+            chunk_words = words[idx:idx + chunk_size]
+            if not chunk_words:
+                break
+            record = {"prompt": prompt, "completion": " ".join(chunk_words).strip()}
             records.append(record)
-        return records
+            splits.append({"chunk_index": len(splits) + 1, "start_word": idx + 1, "end_word": idx + len(chunk_words)})
+
+        report_entry = {
+            "book": path,
+            "start_page": start,
+            "end_page": end,
+            "total_words": len(words),
+            "chunk_size": chunk_size,
+            "overlap": overlap,
+            "num_chunks": len(splits),
+            "chunks": splits,
+        }
+
+        return records, report_entry
 
     all_records = []
+    report = []
     with ThreadPoolExecutor(max_workers=os.cpu_count() or 1) as executor:
         futures = [executor.submit(process_book, book, idx + 1) for idx, book in enumerate(books)]
         for f in tqdm(as_completed(futures), total=len(futures), desc="Books"):
-            all_records.extend(f.result())
+            records, rep = f.result()
+            all_records.extend(records)
+            report.append(rep)
+
+    with open(report_file, "w", encoding="utf-8") as rep_f:
+        json.dump(report, rep_f, ensure_ascii=False, indent=2)
 
     with open(output, "w", encoding="utf-8") as out_f:
         for record in all_records:
